@@ -1,21 +1,17 @@
 /**
  * seed.js — Database Seed Script
  *
- * WHAT: Wipes and repopulates the MongoDB database with realistic
- *       sample data for portfolio demonstration.
+ * WHAT: Safely seeds realistic sample users into MongoDB without
+ *       deleting or overwriting existing data.
  *
  * HOW:  Run with:  node seed.js
- *       Optional:  node seed.js --wipe   (wipe only, no reseed)
  *
  * STEPS:
  *   1. Load .env and connect to MongoDB
- *   2. Drop all documents from users, jobs, applications collections
- *   3. Insert client users  → capture their _id values
- *   4. Insert freelancers   → capture their _id values
- *   5. Insert jobs          → pass client _ids to factory function
- *   6. Insert applications  → pass freelancer + job _ids
- *   7. Print summary report
- *   8. Disconnect
+ *   2. Insert any missing client users
+ *   3. Insert any missing freelancer users
+ *   4. Print summary report
+ *   5. Disconnect
  *
  * IMPORTANT:
  *   - Password for ALL seed accounts is:  Password123
@@ -24,120 +20,93 @@
  *   - Never run this script against a production database with real user data.
  */
 
-require('dotenv').config(); // Load MONGO_URI and other env vars from .env
+require("dotenv").config(); // Load MONGO_URI and other env vars from .env
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 // Models — must be imported so Mongoose registers the schemas
-const User        = require('./models/User');
-const Job         = require('./models/Job');
-const Application = require('./models/Application');
-
-// Seed data factories
-const clientsData       = require('./seedData/clients');
-const freelancersData   = require('./seedData/freelancers');
-const createJobs        = require('./seedData/jobs');
-const createApplications = require('./seedData/applications');
+const User = require("./models/User");
+const clientsData = require("./seedData/clients");
+const freelancersData = require("./seedData/freelancers");
 
 // ─── Utility: coloured console output ───────────────────────────────────────
 const log = {
-  info:    (msg) => console.log(`\x1b[36mℹ  ${msg}\x1b[0m`),
+  info: (msg) => console.log(`\x1b[36mℹ  ${msg}\x1b[0m`),
   success: (msg) => console.log(`\x1b[32m✓  ${msg}\x1b[0m`),
-  warn:    (msg) => console.log(`\x1b[33m⚠  ${msg}\x1b[0m`),
-  error:   (msg) => console.log(`\x1b[31m✗  ${msg}\x1b[0m`),
-  header:  (msg) => console.log(`\n\x1b[1m\x1b[35m${msg}\x1b[0m`),
-  divider: ()    => console.log('\x1b[90m' + '─'.repeat(50) + '\x1b[0m'),
+  warn: (msg) => console.log(`\x1b[33m⚠  ${msg}\x1b[0m`),
+  error: (msg) => console.log(`\x1b[31m✗  ${msg}\x1b[0m`),
+  header: (msg) => console.log(`\n\x1b[1m\x1b[35m${msg}\x1b[0m`),
+  divider: () => console.log("\x1b[90m" + "─".repeat(50) + "\x1b[0m"),
 };
 
 // ─── Main seed function ──────────────────────────────────────────────────────
 async function seed() {
-  log.header('FreelanceHub Database Seeder');
+  log.header("FreelanceHub Database Seeder");
   log.divider();
 
   // ── 1. Connect to MongoDB ──────────────────────────────────────────────────
-  log.info('Connecting to MongoDB…');
+  log.info("Connecting to MongoDB…");
   const uri = process.env.MONGO_URI;
   if (!uri) {
-    log.error('MONGO_URI is not set in .env — aborting.');
+    log.error("MONGO_URI is not set in .env — aborting.");
     process.exit(1);
   }
 
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
   log.success(`Connected to: ${mongoose.connection.host}`);
 
-  // ── 2. Wipe existing data ──────────────────────────────────────────────────
-  log.header('Step 1 — Clearing existing data');
+  async function seedUsers(records, label) {
+    const summary = { created: 0, skipped: 0 };
 
-  const [deletedApps, deletedJobs, deletedUsers] = await Promise.all([
-    Application.deleteMany({}),
-    Job.deleteMany({}),
-    User.deleteMany({}),
-  ]);
+    for (const userData of records) {
+      const existingUser = await User.findOne({ email: userData.email }).select(
+        "_id role email",
+      );
 
-  log.success(`Deleted ${deletedUsers.deletedCount} users`);
-  log.success(`Deleted ${deletedJobs.deletedCount} jobs`);
-  log.success(`Deleted ${deletedApps.deletedCount} applications`);
+      if (existingUser) {
+        summary.skipped += 1;
+        if (existingUser.role !== userData.role) {
+          log.warn(
+            `Skipped ${label}: ${userData.email} already exists as ${existingUser.role}`,
+          );
+        } else {
+          log.info(
+            `Skipped ${label}: ${userData.name} (${userData.email}) already exists`,
+          );
+        }
+        continue;
+      }
 
-  // Handle --wipe flag: exit after clearing
-  if (process.argv.includes('--wipe')) {
-    log.warn('--wipe flag detected. Database cleared. Exiting without reseeding.');
-    await mongoose.disconnect();
-    process.exit(0);
+      const user = await User.create(userData);
+      summary.created += 1;
+      if (label === "freelancer") {
+        log.success(
+          `Created freelancer: ${user.name} — $${user.hourlyRate}/hr (${user.location})`,
+        );
+      } else {
+        log.success(`Created client: ${user.name} (${user.email})`);
+      }
+    }
+
+    return summary;
   }
 
-  // ── 3. Seed clients ────────────────────────────────────────────────────────
-  log.header('Step 2 — Seeding clients');
+  // ── 2. Seed clients ────────────────────────────────────────────────────────
+  log.header("Step 1 — Seeding clients");
+  const clientSummary = await seedUsers(clientsData, "client");
 
-  // We use .create() which triggers the pre-save hook for password hashing
-  // insertMany() would bypass pre-save hooks, so we must NOT use it for users
-  const clients = [];
-  for (const clientData of clientsData) {
-    const client = await User.create(clientData);
-    clients.push(client);
-    log.success(`Created client: ${client.name} (${client.email})`);
-  }
+  // ── 3. Seed freelancers ────────────────────────────────────────────────────
+  log.header("Step 2 — Seeding freelancers");
+  const freelancerSummary = await seedUsers(freelancersData, "freelancer");
 
-  // ── 4. Seed freelancers ────────────────────────────────────────────────────
-  log.header('Step 3 — Seeding freelancers');
-
-  const freelancers = [];
-  for (const flData of freelancersData) {
-    const freelancer = await User.create(flData);
-    freelancers.push(freelancer);
-    log.success(`Created freelancer: ${freelancer.name} — $${freelancer.hourlyRate}/hr (${freelancer.location})`);
-  }
-
-  // ── 5. Seed jobs ───────────────────────────────────────────────────────────
-  log.header('Step 4 — Seeding jobs');
-
-  // Extract client _ids in the same order as clientsData array
-  const clientIds     = clients.map(c => c._id);
-  const jobsData      = createJobs(clientIds);
-
-  // Jobs do not have password hooks, so insertMany() is fine and faster
-  const jobs = await Job.insertMany(jobsData);
-  jobs.forEach(job => log.success(`Created job: "${job.title.substring(0, 55)}…"`));
-
-  // ── 6. Seed applications ───────────────────────────────────────────────────
-  log.header('Step 5 — Seeding applications');
-
-  const freelancerIds    = freelancers.map(f => f._id);
-  const jobIds           = jobs.map(j => j._id);
-  const applicationsData = createApplications(freelancerIds, jobIds);
-
-  const applications = await Application.insertMany(applicationsData);
-  log.success(`Created ${applications.length} applications`);
-
-  // ── 7. Summary report ──────────────────────────────────────────────────────
-  log.header('Seed Complete — Summary');
+  // ── 4. Summary report ──────────────────────────────────────────────────────
+  log.header("Seed Complete — Summary");
   log.divider();
 
   console.log(`
-  📊 Database populated with:
-     👤  ${clients.length} clients
-     🧑‍💻  ${freelancers.length} freelancers
-     💼  ${jobs.length} jobs (${jobs.filter(j => j.status === 'open').length} open, ${jobs.filter(j => j.status === 'in_progress').length} in progress)
-     📨  ${applications.length} applications
+  📊 Database updated without deleting existing records:
+     👤  ${clientSummary.created} new clients created (${clientSummary.skipped} skipped)
+     🧑‍💻  ${freelancerSummary.created} new freelancers created (${freelancerSummary.skipped} skipped)
 
   🔑  All accounts use password:  Password123
 
@@ -161,9 +130,9 @@ async function seed() {
 
   log.divider();
 
-  // ── 8. Disconnect ──────────────────────────────────────────────────────────
+  // ── 5. Disconnect ──────────────────────────────────────────────────────────
   await mongoose.disconnect();
-  log.success('MongoDB disconnected. Done!');
+  log.success("MongoDB disconnected. Done!");
   process.exit(0);
 }
 
