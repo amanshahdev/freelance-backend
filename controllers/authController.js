@@ -13,24 +13,24 @@
  *       future OAuth integration straightforward.
  */
 
-const User = require('../models/User');
-const generateToken = require('../utils/generateToken');
+const User = require("../models/User");
+const generateToken = require("../utils/generateToken");
 
 // ─── Helper: build safe user response ───────────────────────────────────────
 const userResponse = (user) => ({
-  _id:         user._id,
-  name:        user.name,
-  email:       user.email,
-  role:        user.role,
-  bio:         user.bio,
-  skills:      user.skills,
-  profilePic:  user.profilePic,
-  location:    user.location,
-  hourlyRate:  user.hourlyRate,
-  portfolio:   user.portfolio,
-  isActive:    user.isActive,
-  createdAt:   user.createdAt,
-  updatedAt:   user.updatedAt,
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  bio: user.bio,
+  skills: user.skills,
+  profilePic: user.profilePic,
+  location: user.location,
+  hourlyRate: user.hourlyRate,
+  portfolio: user.portfolio,
+  isActive: user.isActive,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
 });
 
 // ─── POST /api/auth/signup ───────────────────────────────────────────────────
@@ -47,7 +47,7 @@ exports.signup = async (req, res, next) => {
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: 'An account with this email already exists.',
+        message: "An account with this email already exists.",
       });
     }
 
@@ -58,7 +58,7 @@ exports.signup = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Account created successfully.',
+      message: "Account created successfully.",
       token,
       user: userResponse(user),
     });
@@ -77,20 +77,22 @@ exports.login = async (req, res, next) => {
     const { email, password } = req.body;
 
     // We must explicitly select password because it has select:false on the schema
-    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+    }).select("+password");
 
     if (!user) {
       // Use a generic message to prevent email enumeration
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: "Invalid email or password.",
       });
     }
 
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been deactivated. Please contact support.',
+        message: "Your account has been deactivated. Please contact support.",
       });
     }
 
@@ -98,7 +100,7 @@ exports.login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: "Invalid email or password.",
       });
     }
 
@@ -106,7 +108,7 @@ exports.login = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Login successful.',
+      message: "Login successful.",
       token,
       user: userResponse(user),
     });
@@ -125,7 +127,9 @@ exports.getMe = async (req, res, next) => {
     // req.user is set by the protect middleware (lean doc, no password)
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
     }
 
     res.json({
@@ -150,31 +154,35 @@ exports.changePassword = async (req, res, next) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'currentPassword and newPassword are required.',
+        message: "currentPassword and newPassword are required.",
       });
     }
 
-    if (newPassword.length < 8) {
+    if (newPassword.length < 6) {
       return res.status(422).json({
         success: false,
-        message: 'New password must be at least 8 characters.',
+        message: "New password must be at least 6 characters.",
       });
     }
 
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
     }
 
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      return res
+        .status(401)
+        .json({ success: false, message: "Current password is incorrect." });
     }
 
     user.password = newPassword; // pre-save hook will hash it
     await user.save();
 
-    res.json({ success: true, message: 'Password updated successfully.' });
+    res.json({ success: true, message: "Password updated successfully." });
   } catch (error) {
     next(error);
   }

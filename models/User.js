@@ -24,58 +24,58 @@
  *   timestamps  — createdAt / updatedAt managed by Mongoose
  */
 
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const portfolioItemSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, maxlength: 100 },
-    url:   { type: String, required: true, trim: true },
+    url: { type: String, required: true, trim: true },
     description: { type: String, trim: true, maxlength: 300 },
   },
-  { _id: true }
+  { _id: true },
 );
 
 const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Name is required'],
+      required: [true, "Name is required"],
       trim: true,
-      minlength: [2, 'Name must be at least 2 characters'],
-      maxlength: [60, 'Name cannot exceed 60 characters'],
+      minlength: [2, "Name must be at least 2 characters"],
+      maxlength: [60, "Name cannot exceed 60 characters"],
     },
 
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address'],
+      match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"],
     },
 
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [8, 'Password must be at least 8 characters'],
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
       select: false, // never returned in queries by default
     },
 
     role: {
       type: String,
       enum: {
-        values: ['client', 'freelancer'],
+        values: ["client", "freelancer"],
         message: 'Role must be either "client" or "freelancer"',
       },
-      required: [true, 'Role is required'],
+      required: [true, "Role is required"],
     },
 
     bio: {
       type: String,
       trim: true,
-      maxlength: [1000, 'Bio cannot exceed 1000 characters'],
-      default: '',
+      maxlength: [1000, "Bio cannot exceed 1000 characters"],
+      default: "",
     },
 
     skills: {
@@ -83,27 +83,27 @@ const userSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator: (arr) => arr.length <= 20,
-        message: 'You cannot list more than 20 skills',
+        message: "You cannot list more than 20 skills",
       },
     },
 
     profilePic: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
 
     location: {
       type: String,
       trim: true,
-      maxlength: [100, 'Location cannot exceed 100 characters'],
-      default: '',
+      maxlength: [100, "Location cannot exceed 100 characters"],
+      default: "",
     },
 
     hourlyRate: {
       type: Number,
-      min: [0, 'Hourly rate cannot be negative'],
-      max: [10000, 'Hourly rate seems unreasonably high'],
+      min: [0, "Hourly rate cannot be negative"],
+      max: [10000, "Hourly rate seems unreasonably high"],
       default: 0,
     },
 
@@ -112,7 +112,7 @@ const userSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator: (arr) => arr.length <= 10,
-        message: 'Portfolio cannot have more than 10 items',
+        message: "Portfolio cannot have more than 10 items",
       },
     },
 
@@ -125,20 +125,20 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
     // Remove __v from responses
     versionKey: false,
-  }
+  },
 );
 
 // ─── Indexes ────────────────────────────────────────────────────────────────
 // Email is already indexed via `unique: true`.
 // Text index on name + bio + skills for full-text user search
-userSchema.index({ name: 'text', bio: 'text', skills: 'text' });
+userSchema.index({ name: "text", bio: "text", skills: "text" });
 userSchema.index({ role: 1 });
 userSchema.index({ createdAt: -1 });
 
 // ─── Pre-save Hook: Hash password ────────────────────────────────────────────
-userSchema.pre('save', async function (next) {
+userSchema.pre("save", async function (next) {
   // Only hash when the password field has actually changed
-  if (!this.isModified('password')) return next();
+  if (!this.isModified("password")) return next();
 
   try {
     const salt = await bcrypt.genSalt(12); // cost factor 12 ≈ ~300 ms
@@ -160,7 +160,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 // ─── toJSON Transform: Strip sensitive fields ────────────────────────────────
-userSchema.set('toJSON', {
+userSchema.set("toJSON", {
   virtuals: true,
   transform: (_doc, ret) => {
     delete ret.password;
@@ -169,5 +169,5 @@ userSchema.set('toJSON', {
   },
 });
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model("User", userSchema);
 module.exports = User;

@@ -14,63 +14,76 @@
  *   PUT    /api/auth/change-password  — change password (protected)
  */
 
-const express = require('express');
-const { body } = require('express-validator');
+const express = require("express");
+const { body } = require("express-validator");
 
-const authController = require('../controllers/authController');
-const { protect } = require('../middleware/authMiddleware');
-const validate = require('../middleware/validate');
+const authController = require("../controllers/authController");
+const { protect } = require("../middleware/authMiddleware");
+const validate = require("../middleware/validate");
 
 const router = express.Router();
 
 // ─── Validator chains ────────────────────────────────────────────────────────
 const signupValidators = [
-  body('name')
+  body("name")
     .trim()
-    .notEmpty().withMessage('Name is required')
-    .isLength({ min: 2, max: 60 }).withMessage('Name must be 2–60 characters'),
+    .notEmpty()
+    .withMessage("Name is required")
+    .isLength({ min: 2, max: 60 })
+    .withMessage("Name must be 2–60 characters"),
 
-  body('email')
+  body("email")
     .trim()
-    .notEmpty().withMessage('Email is required')
-    .isEmail().withMessage('Enter a valid email address')
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Enter a valid email address")
     .normalizeEmail(),
 
-  body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
-    .matches(/[0-9]/).withMessage('Password must contain at least one number'),
+  body("password")
+    .notEmpty()
+    .withMessage("Password is required")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters"),
 
-  body('role')
-    .notEmpty().withMessage('Role is required')
-    .isIn(['client', 'freelancer']).withMessage('Role must be "client" or "freelancer"'),
+  body("role")
+    .notEmpty()
+    .withMessage("Role is required")
+    .isIn(["client", "freelancer"])
+    .withMessage('Role must be "client" or "freelancer"'),
 ];
 
 const loginValidators = [
-  body('email')
+  body("email")
     .trim()
-    .notEmpty().withMessage('Email is required')
-    .isEmail().withMessage('Enter a valid email address')
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Enter a valid email address")
     .normalizeEmail(),
 
-  body('password')
-    .notEmpty().withMessage('Password is required'),
+  body("password").notEmpty().withMessage("Password is required"),
 ];
 
 const changePasswordValidators = [
-  body('currentPassword').notEmpty().withMessage('currentPassword is required'),
-  body('newPassword')
-    .notEmpty().withMessage('newPassword is required')
-    .isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
-    .matches(/[A-Z]/).withMessage('New password must contain at least one uppercase letter')
-    .matches(/[0-9]/).withMessage('New password must contain at least one number'),
+  body("currentPassword").notEmpty().withMessage("currentPassword is required"),
+  body("newPassword")
+    .notEmpty()
+    .withMessage("newPassword is required")
+    .isLength({ min: 6 })
+    .withMessage("New password must be at least 6 characters"),
 ];
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
-router.post('/signup', signupValidators, validate, authController.signup);
-router.post('/login',  loginValidators,  validate, authController.login);
-router.get('/me',      protect,                    authController.getMe);
-router.put('/change-password', protect, changePasswordValidators, validate, authController.changePassword);
+router.post("/signup", signupValidators, validate, authController.signup);
+router.post("/login", loginValidators, validate, authController.login);
+router.get("/me", protect, authController.getMe);
+router.put(
+  "/change-password",
+  protect,
+  changePasswordValidators,
+  validate,
+  authController.changePassword,
+);
 
 module.exports = router;
